@@ -117,3 +117,5 @@ def shortest_paths_no_same_arrival(g, src, dst, k):
         if ch.right:
             # print('bye')
             heappush(q, (cd + ch.right.key - ch.key, ch.right, path))
+
+    return ans
