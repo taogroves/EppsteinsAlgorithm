@@ -119,3 +119,6 @@ def shortest_paths_no_same_arrival(g, src, dst, k):
             heappush(q, (cd + ch.right.key - ch.key, ch.right, path))
 
     return ans
+
+if __name__ == "__main__":
+    main()
