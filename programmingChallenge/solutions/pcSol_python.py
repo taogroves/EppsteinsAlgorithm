@@ -1,6 +1,9 @@
-from heapq import heappop, heappush
+import sys
+from heapq import *
 
-INF = 10**18
+input = sys.stdin.buffer.readline
+
+INF = 10 ** 18
 
 def main():
     n, m, s, t, k = map(int, input().split())
@@ -9,14 +12,13 @@ def main():
         u, v, w = map(int, input().split())
         g[u].append((w, v))
 
-    print(sum(l[0] for l in shortest_paths_no_same_arrival(g, s, t, k)))
+    print(shortest_paths_no_same_arrival(g, s, t, k))
 
 def dijkstra(g, src):
     n = len(g)
     d, p = [INF] * n, [-1] * n
     d[src] = 0
     q = [(0, src)]
-    paths = []
     while q:
         du, u = heappop(q)
         if du != d[u]:
@@ -102,7 +104,6 @@ def shortest_paths_no_same_arrival(g, src, dst, k):
     q = [(d[src] + h[src].key, h[src], [])]
     while q and len(ans) < k:
         cd, ch, path = heappop(q)
-        # print('key', ch.key)
         new_path = path + [(ch.origin, ch.value)]
 
         # if the length of this path is the same as the last one, skip it
@@ -112,13 +113,11 @@ def shortest_paths_no_same_arrival(g, src, dst, k):
         if h[ch.value]:
             heappush(q, (cd + h[ch.value].key, h[ch.value], new_path))
         if ch.left:
-            # print('hi')
             heappush(q, (cd + ch.left.key - ch.key, ch.left, path))
         if ch.right:
-            # print('bye')
             heappush(q, (cd + ch.right.key - ch.key, ch.right, path))
 
     return ans
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

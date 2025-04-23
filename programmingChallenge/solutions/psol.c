@@ -1,336 +1,295 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <limits.h>
 
-#define INF 1000000000
+#define INF 1000000000000000000LL
 
-typedef struct Edge {
-    int w;
-    int v;
-    struct Edge* next;
+typedef struct {
+    long long weight;
+    int to;
 } Edge;
 
+typedef struct {
+    Edge* edges;
+    int size;
+    int capacity;
+} EdgeList;
+
+typedef struct {
+    long long dist;
+    int node;
+} PQNode;
+
+typedef struct {
+    PQNode* data;
+    int size;
+    int capacity;
+} MinHeap;
+
 typedef struct EHeap {
-    int rank;
-    int key;
+    long long rank;
+    long long key;
     int origin;
     int value;
     struct EHeap* left;
     struct EHeap* right;
 } EHeap;
 
-/* Helper function to create a new edge */
-Edge* new_edge(int w, int v, Edge* next) {
-    Edge* e = (Edge*) malloc(sizeof(Edge));
-    e->w = w;
-    e->v = v;
-    e->next = next;
-    return e;
+typedef struct {
+    long long cost;
+    EHeap* node;
+} ExpandNode;
+
+typedef struct {
+    ExpandNode* data;
+    int size;
+    int capacity;
+} ExpandPQ;
+
+/* --- Utility functions --- */
+
+void init_edge_list(EdgeList* list) {
+    list->size = 0;
+    list->capacity = 4;
+    list->edges = (Edge*)malloc(sizeof(Edge) * list->capacity);
 }
 
-/* Leftist heap construction */
-EHeap* new_EHeap(int rank, int key, int origin, int value, EHeap* left, EHeap* right) {
-    EHeap* h = (EHeap*) malloc(sizeof(EHeap));
-    h->rank = rank;
-    h->key = key;
-    h->origin = origin;
-    h->value = value;
-    h->left = left;
-    h->right = right;
+void add_edge(EdgeList* list, long long weight, int to) {
+    if (list->size == list->capacity) {
+        list->capacity *= 2;
+        list->edges = (Edge*)realloc(list->edges, sizeof(Edge) * list->capacity);
+    }
+    list->edges[list->size++] = (Edge){weight, to};
+}
+
+/* --- Dijkstra heap --- */
+
+MinHeap* create_heap(int capacity) {
+    MinHeap* h = (MinHeap*)malloc(sizeof(MinHeap));
+    h->data = (PQNode*)malloc(sizeof(PQNode) * capacity);
+    h->size = 0;
+    h->capacity = capacity;
     return h;
 }
 
-/* Insert into leftist heap */
-EHeap* EHeap_insert(EHeap* a, int k, int u, int v) {
-    if (!a || k < a->key) {
-        return new_EHeap(1, k, u, v, a, NULL);
+void push_heap(MinHeap* h, long long dist, int node) {
+    int i = h->size++;
+    h->data[i] = (PQNode){dist, node};
+    while (i && h->data[(i - 1) / 2].dist > h->data[i].dist) {
+        PQNode tmp = h->data[i];
+        h->data[i] = h->data[(i - 1) / 2];
+        h->data[(i - 1) / 2] = tmp;
+        i = (i - 1) / 2;
     }
-    EHeap* r = EHeap_insert(a->right, k, u, v);
-    EHeap* l = a->left;
-    if (!l || (r && r->rank > l->rank)) {
-        a->left = r;
-        a->right = l;
-    } else {
-        a->right = r;
+}
+
+PQNode pop_heap(MinHeap* h) {
+    PQNode top = h->data[0];
+    h->data[0] = h->data[--h->size];
+    int i = 0;
+    while (1) {
+        int l = 2*i + 1, r = 2*i + 2, smallest = i;
+        if (l < h->size && h->data[l].dist < h->data[smallest].dist) smallest = l;
+        if (r < h->size && h->data[r].dist < h->data[smallest].dist) smallest = r;
+        if (smallest == i) break;
+        PQNode tmp = h->data[i];
+        h->data[i] = h->data[smallest];
+        h->data[smallest] = tmp;
+        i = smallest;
+    }
+    return top;
+}
+
+int heap_empty(MinHeap* h) {
+    return h->size == 0;
+}
+
+/* --- Leftist heap --- */
+
+EHeap* insert_node(EHeap* a, long long k, int u, int v) {
+    EHeap* node = (EHeap*)malloc(sizeof(EHeap));
+    node->rank = 1;
+    node->key = k;
+    node->origin = u;
+    node->value = v;
+    node->left = a;
+    node->right = NULL;
+
+    if (!a || k < a->key) return node;
+
+    a->right = insert_node(a->right, k, u, v);
+    if (!a->left || (a->right && a->right->rank > a->left->rank)) {
+        EHeap* tmp = a->left;
+        a->left = a->right;
+        a->right = tmp;
     }
     a->rank = (a->right ? a->right->rank : 0) + 1;
     return a;
 }
 
-/* Dijkstra routine on reversed graph */
-void dijkstra(Edge** revg, int n, int src, int* d, int* p) {
-    int* visited = (int*) calloc(n, sizeof(int));
-    int i;
-    for (i = 0; i < n; i++) {
-        d[i] = INF;
-        p[i] = -1;
-        visited[i] = 0;
-    }
-    d[src] = 0;
+/* --- Expansion queue --- */
 
-    /* Min-heap-based approach */
-    #define PQSIZE (200000)
-    int pqsize = 0;
-    int* heapd = (int*) malloc(sizeof(int) * PQSIZE);
-    int* heapv = (int*) malloc(sizeof(int) * PQSIZE);
-
-    /* A simple priority queue push/pop (binary heap) */
-    void push(int dist, int vtx) {
-        if (pqsize >= PQSIZE) return;
-        heapd[pqsize] = dist;
-        heapv[pqsize] = vtx;
-        int curr = pqsize++;
-        while (curr > 0) {
-            int parent = (curr - 1) / 2;
-            if (heapd[parent] <= heapd[curr]) break;
-            int tmpd = heapd[curr], tmpv = heapv[curr];
-            heapd[curr] = heapd[parent]; heapv[curr] = heapv[parent];
-            heapd[parent] = tmpd; heapv[parent] = tmpv;
-            curr = parent;
-        }
-    }
-
-    int popv() {
-        if (pqsize == 0) return -1;
-        int mnv = heapv[0];
-        heapd[0] = heapd[--pqsize];
-        heapv[0] = heapv[pqsize];
-        int curr = 0;
-        while (1) {
-            int l = curr * 2 + 1, r = curr * 2 + 2, best = curr;
-            if (l < pqsize && heapd[l] < heapd[best]) best = l;
-            if (r < pqsize && heapd[r] < heapd[best]) best = r;
-            if (best == curr) break;
-            int tmpd = heapd[curr], tmpv = heapv[curr];
-            heapd[curr] = heapd[best]; heapv[curr] = heapv[best];
-            heapd[best] = tmpd; heapv[best] = tmpv;
-            curr = best;
-        }
-        return mnv;
-    }
-
-    push(0, src);
-    while (pqsize > 0) {
-        int u = popv();
-        if (u < 0) break;
-        if (visited[u]) continue;
-        visited[u] = 1;
-        Edge* e = revg[u];
-        while (e) {
-            int nd = d[u] + e->w;
-            if (nd < d[e->v]) {
-                d[e->v] = nd;
-                p[e->v] = u;
-                push(nd, e->v);
-            }
-            e = e->next;
-        }
-    }
-    free(visited);
-    free(heapd);
-    free(heapv);
+ExpandPQ* create_expand_pq(int capacity) {
+    ExpandPQ* pq = (ExpandPQ*)malloc(sizeof(ExpandPQ));
+    pq->data = (ExpandNode*)malloc(sizeof(ExpandNode) * capacity);
+    pq->size = 0;
+    pq->capacity = capacity;
+    return pq;
 }
 
-/* Shortest paths without same arrival logic */
-typedef struct {
-    int dist;
-    int* path; /* We'll just store distance here for printing sum in main, path usage is optional */
-} PathItem;
-
-/* Function similar to shortest_paths_no_same_arrival in Python */
-PathItem* shortest_paths_no_same_arrival(Edge** g, int n, int src, int dst, int k, int* outSize) {
-    /* Build reversed graph */
-    Edge** revg = (Edge**) calloc(n, sizeof(Edge*));
-    int u;
-    for (u = 0; u < n; u++) {
-        Edge* e = g[u];
-        while (e) {
-            Edge* tmp = new_edge(e->w, u, revg[e->v]);
-            revg[e->v] = tmp;
-            e = e->next;
-        }
+void push_expand(ExpandPQ* pq, long long cost, EHeap* node) {
+    int i = pq->size++;
+    pq->data[i] = (ExpandNode){cost, node};
+    while (i && pq->data[(i - 1) / 2].cost > pq->data[i].cost) {
+        ExpandNode tmp = pq->data[i];
+        pq->data[i] = pq->data[(i - 1) / 2];
+        pq->data[(i - 1) / 2] = tmp;
+        i = (i - 1) / 2;
     }
-
-    /* dijkstra on reversed graph from dst */
-    int* d = (int*) malloc(sizeof(int) * n);
-    int* p = (int*) malloc(sizeof(int) * n);
-    dijkstra(revg, n, dst, d, p);
-
-    if (d[src] == INF) {
-        *outSize = 0;
-        free(revg);
-        free(d);
-        free(p);
-        return NULL;
-    }
-
-    /* build tree t from p */
-    Edge** t = (Edge**) calloc(n, sizeof(Edge*));
-    for (u = 0; u < n; u++) {
-        if (p[u] != -1) {
-            t[p[u]] = new_edge(0, u, t[p[u]]);
-        }
-    }
-
-    /* prepare heaps */
-    EHeap** h = (EHeap**) calloc(n, sizeof(EHeap*));
-    int* queue = (int*) malloc(sizeof(int) * n);
-    int front = 0, back = 0;
-    queue[back++] = dst;
-
-    while (front < back) {
-        int curr = queue[front++];
-        int seenp = 0;
-        /* insert edges into heap */
-        Edge* ge = g[curr];
-        while (ge) {
-            if (d[ge->v] != INF) {
-                int c = ge->w + d[ge->v] - d[curr];
-                if (!seenp && p[curr] == ge->v && c == 0) {
-                    seenp = 1;
-                } else {
-                    h[curr] = EHeap_insert(h[curr], c, curr, ge->v);
-                }
-            }
-            ge = ge->next;
-        }
-        /* propagate to children in t */
-        Edge* te = t[curr];
-        while (te) {
-            h[te->v] = h[curr];
-            queue[back++] = te->v;
-            te = te->next;
-        }
-    }
-
-    /* collect paths (dist only) */
-    PathItem* ans = (PathItem*) malloc(sizeof(PathItem) * k);
-    int count = 0;
-    ans[count].dist = d[src];
-    ans[count].path = NULL;
-    count++;
-
-    /* if no heap at src, we're done */
-    if (!h[src]) {
-        *outSize = count; 
-        free(revg);
-        free(d);
-        free(p);
-        free(t);
-        free(h);
-        free(queue);
-        return ans;
-    }
-
-    /* min-heap for expansions */
-    #define PQ2SIZE 200000
-    EHeap** heap = (EHeap**) malloc(sizeof(EHeap*) * PQ2SIZE);
-    int* cost = (int*) malloc(sizeof(int) * PQ2SIZE);
-    int pq2size = 0;
-    void push2(EHeap* x, int cst) {
-        if (pq2size >= PQ2SIZE) return;
-        int idx = pq2size++;
-        cost[idx] = cst;
-        heap[idx] = x;
-        while (idx > 0) {
-            int parent = (idx - 1)/2;
-            if (cost[parent] <= cost[idx]) break;
-            int tmpc = cost[parent]; cost[parent] = cost[idx]; cost[idx] = tmpc;
-            EHeap* tmph = heap[parent]; heap[parent] = heap[idx]; heap[idx] = tmph;
-            idx = parent;
-        }
-    }
-    EHeap* pop2(int* outCst) {
-        if (pq2size == 0) {
-            *outCst = -1;
-            return NULL;
-        }
-        EHeap* ret = heap[0];
-        *outCst = cost[0];
-        cost[0] = cost[--pq2size];
-        heap[0] = heap[pq2size];
-        int curr = 0;
-        while (1) {
-            int l = curr*2+1, r = curr*2+2, best = curr;
-            if (l < pq2size && cost[l] < cost[best]) best = l;
-            if (r < pq2size && cost[r] < cost[best]) best = r;
-            if (best == curr) break;
-            int tmpc = cost[curr]; cost[curr] = cost[best]; cost[best] = tmpc;
-            EHeap* tmph = heap[curr]; heap[curr] = heap[best]; heap[best] = tmph;
-            curr = best;
-        }
-        return ret;
-    }
-
-    push2(h[src], d[src] + h[src]->key);
-
-    while (pq2size > 0 && count < k) {
-        int cd = 0;
-        EHeap* ch = pop2(&cd);
-        if (!ch) break;
-
-        int distVal = cd;
-        /* if distVal > last appended dist, append a new path entry */
-        if (distVal > ans[count - 1].dist) {
-            ans[count].dist = distVal;
-            ans[count].path = NULL; 
-            count++;
-        }
-
-        /* expansions: heap at ch->value, left, right */
-        if (h[ch->value]) {
-            push2(h[ch->value], distVal + h[ch->value]->key);
-        }
-        if (ch->left) {
-            push2(ch->left, distVal + ch->left->key - ch->key);
-        }
-        if (ch->right) {
-            push2(ch->right, distVal + ch->right->key - ch->key);
-        }
-    }
-
-    *outSize = count;
-
-    free(revg);
-    free(d);
-    free(p);
-    free(t);
-    free(h);
-    free(queue);
-    free(heap);
-    free(cost);
-    return ans;
 }
 
-int main(void) {
+ExpandNode pop_expand(ExpandPQ* pq) {
+    ExpandNode top = pq->data[0];
+    pq->data[0] = pq->data[--pq->size];
+    int i = 0;
+    while (1) {
+        int l = 2*i + 1, r = 2*i + 2, smallest = i;
+        if (l < pq->size && pq->data[l].cost < pq->data[smallest].cost) smallest = l;
+        if (r < pq->size && pq->data[r].cost < pq->data[smallest].cost) smallest = r;
+        if (smallest == i) break;
+        ExpandNode tmp = pq->data[i];
+        pq->data[i] = pq->data[smallest];
+        pq->data[smallest] = tmp;
+        i = smallest;
+    }
+    return top;
+}
+
+/* --- Dijkstra from reversed graph --- */
+
+void dijkstra(EdgeList* graph, int n, int src, long long* dist, int* pred) {
+    for (int i = 0; i < n; i++) {
+        dist[i] = INF;
+        pred[i] = -1;
+    }
+    dist[src] = 0;
+
+    MinHeap* pq = create_heap(n * 2);
+    push_heap(pq, 0, src);
+
+    while (!heap_empty(pq)) {
+        PQNode top = pop_heap(pq);
+        int u = top.node;
+        if (top.dist != dist[u]) continue;
+
+        for (int i = 0; i < graph[u].size; i++) {
+            int v = graph[u].edges[i].to;
+            long long w = graph[u].edges[i].weight;
+            if (dist[u] + w < dist[v]) {
+                dist[v] = dist[u] + w;
+                pred[v] = u;
+                push_heap(pq, dist[v], v);
+            }
+        }
+    }
+
+    free(pq->data);
+    free(pq);
+}
+
+/* --- Main logic --- */
+
+int main() {
     int n, m, s, t, k;
     scanf("%d %d %d %d %d", &n, &m, &s, &t, &k);
 
-    /* Build adjacency list g */
-    Edge** g = (Edge**) calloc(n, sizeof(Edge*));
-    for (int i = 0; i < m; i++) {
-        int u, v, w;
-        scanf("%d %d %d", &u, &v, &w);
-        g[u] = new_edge(w, v, g[u]);
-    }
-
-    int outSize = 0;
-    PathItem* paths = shortest_paths_no_same_arrival(g, n, s, t, k, &outSize);
-    long long sum_dist = 0;
-    for (int i = 0; i < outSize; i++) {
-        sum_dist += paths[i].dist;
-    }
-    printf("%lld\n", sum_dist);
-
-    free(paths);
+    EdgeList* graph = (EdgeList*)malloc(sizeof(EdgeList) * n);
+    EdgeList* revg = (EdgeList*)malloc(sizeof(EdgeList) * n);
     for (int i = 0; i < n; i++) {
-        Edge* e = g[i];
-        while (e) {
-            Edge* temp = e->next;
-            free(e);
-            e = temp;
+        init_edge_list(&graph[i]);
+        init_edge_list(&revg[i]);
+    }
+
+    for (int i = 0; i < m; i++) {
+        int u, v;
+        long long w;
+        scanf("%d %d %lld", &u, &v, &w);
+        add_edge(&graph[u], w, v);
+        add_edge(&revg[v], w, u);
+    }
+
+    long long* d = (long long*)malloc(sizeof(long long) * n);
+    int* p = (int*)malloc(sizeof(int) * n);
+    dijkstra(revg, n, t, d, p);
+
+    if (d[s] == INF) {
+        printf("-1\n");
+        return 0;
+    }
+
+    // Build tree from p
+    EdgeList* tree = (EdgeList*)malloc(sizeof(EdgeList) * n);
+    for (int i = 0; i < n; i++) init_edge_list(&tree[i]);
+    for (int i = 0; i < n; i++) {
+        if (p[i] != -1) {
+            add_edge(&tree[p[i]], 0, i);
         }
     }
-    free(g);
+
+    EHeap** h = (EHeap**)calloc(n, sizeof(EHeap*));
+    int* queue = (int*)malloc(sizeof(int) * n);
+    int qh = 0, qt = 0;
+    queue[qt++] = t;
+
+    while (qh < qt) {
+        int u = queue[qh++];
+        int seenp = 0;
+        for (int i = 0; i < graph[u].size; i++) {
+            int v = graph[u].edges[i].to;
+            long long w = graph[u].edges[i].weight;
+            if (d[v] == INF) continue;
+            long long c = w + d[v] - d[u];
+            if (!seenp && v == p[u] && c == 0) {
+                seenp = 1;
+                continue;
+            }
+            h[u] = insert_node(h[u], c, u, v);
+        }
+
+        for (int i = 0; i < tree[u].size; i++) {
+            int child = tree[u].edges[i].to;
+            h[child] = h[u];
+            queue[qt++] = child;
+        }
+    }
+
+    long long last_dist = d[s];
+    if (!h[s]) {
+        printf("%lld\n", last_dist);
+        return 0;
+    }
+
+    ExpandPQ* pq = create_expand_pq(k * 10);
+    push_expand(pq, d[s] + h[s]->key, h[s]);
+
+    int found = 1;
+    while (found < k && pq->size > 0) {
+        ExpandNode top = pop_expand(pq);
+        long long cost = top.cost;
+        EHeap* ch = top.node;
+
+        if (cost > last_dist) {
+            last_dist = cost;
+            found++;
+        }
+
+        if (h[ch->value]) push_expand(pq, cost + h[ch->value]->key, h[ch->value]);
+        if (ch->left) push_expand(pq, cost + ch->left->key - ch->key, ch->left);
+        if (ch->right) push_expand(pq, cost + ch->right->key - ch->key, ch->right);
+    }
+
+    printf("%lld\n", last_dist);
+
     return 0;
 }

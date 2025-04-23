@@ -170,11 +170,8 @@ int main(){
     // Compute up to k distinct paths with no same arrival
     auto paths = shortest_paths_no_same_arrival(graph, s, t, k);
 
-    long long sumDist = 0;
-    for(auto &it : paths){
-        sumDist += it.first; 
-    }
-
-    cout << sumDist << "\n";
+    // Output the length of the last (longest) path
+    cout << paths.back().first << '\n';
+    
     return 0;
 }
