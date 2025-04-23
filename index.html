@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title># Project 20 - Eppstein's Algorithm</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="../../markdown.css" />
+</head>
+<body>
+<h1 id="project-20---eppsteins-algorithm">Project 20 - Eppstein's Algorithm</h1>
+<p>Go <a href="../../index.html">back to home page</a></p>
+<h2 id="executive-summary">Executive Summary</h2>
+<ul>
+<li><a href="./executiveSummary.pdf">Executive Summary</a></li>
+</ul>
+<h2 id="implementation">Implementation</h2>
+<ul>
+<li>Implementations
+<ul>
+<li><a href="./implementation/eppsteinsAlgorithm.cpp">C++</a></li>
+<li><a href="./implementation/eppsteinsAlgorithm.java">Java</a></li>
+<li><a href="./implementation/eppsteinsAlgorithm.py">Python</a></li>
+<li>Sample Cases
+<ul>
+<li><a href="./implementation/io/sample.in.1">test input 1</a></li>
+<li><a href="./implementation/io/sample.out.1">test output 1</a></li>
+<li><a href="./implementation/io/sample.in.2">test input 2</a></li>
+<li><a href="./implementation/io/sample.out.2">test output 2</a></li>
+<li><a href="./implementation/io/sample.in.3">test input 3</a></li>
+<li><a href="./implementation/io/sample.out.3">test output 3</a></li>
+</ul></li>
+</ul></li>
+</ul>
+<h2 id="slides">Slides</h2>
+<ul>
+<li><a href="./slides/lecture_eppsteinsalgorithm.pptx">Instructional
+Slides</a></li>
+<li><a href="./slides/presentation_eppsteinsalgorithm.pptx">Presentation
+Slides</a></li>
+</ul>
+<h2 id="programming-challenge">Programming Challenge</h2>
+<ul>
+<li><a href="./programmingChallenge/problemStatement.pdf">Programming
+Challenge</a>
+<ul>
+<li>Solutions:
+<ul>
+<li><a
+href="./programmingChallenge/solutions/pcSol_cpp.cpp">C++</a></li>
+<li><a
+href="./programmingChallenge/solutions/pcSol_java.java">Java</a></li>
+<li><a
+href="./programmingChallenge/solutions/pcSol_python.py">Python</a></li>
+</ul></li>
+<li>Test Cases:
+<ul>
+<li><a href="./programmingChallenge/io/test.in.1">test input 1</a></li>
+<li><a href="./programmingChallenge/io/test.out.1">test output
+1</a></li>
+<li><a href="./programmingChallenge/io/test.in.2">test input 2</a></li>
+<li><a href="./programmingChallenge/io/test.out.2">test output
+2</a></li>
+<li><a href="./programmingChallenge/io/test.in.3">test input 3</a></li>
+<li><a href="./programmingChallenge/io/test.out.3">test output
+3</a></li>
+<li><a href="./programmingChallenge/io/test.in.4">test input 4</a></li>
+<li><a href="./programmingChallenge/io/test.out.4">test output
+4</a></li>
+<li><a href="./programmingChallenge/io/test.in.5">test input 5</a></li>
+<li><a href="./programmingChallenge/io/test.out.5">test output
+5</a></li>
+<li><a href="./programmingChallenge/io/test.in.6">test input 6</a></li>
+<li><a href="./programmingChallenge/io/test.out.6">test output
+6</a></li>
+<li><a href="./programmingChallenge/io/test.in.7">test input 7</a></li>
+<li><a href="./programmingChallenge/io/test.out.7">test output
+7</a></li>
+<li><a href="./programmingChallenge/io/test.in.8">test input 8</a></li>
+<li><a href="./programmingChallenge/io/test.out.8">test output
+8</a></li>
+<li><a href="./programmingChallenge/io/test.in.9">test input 9</a></li>
+<li><a href="./programmingChallenge/io/test.out.9">test output
+9</a></li>
+<li><a href="./programmingChallenge/io/test.in.10">test input
+10</a></li>
+<li><a href="./programmingChallenge/io/test.out.10">test output
+10</a></li>
+<li><a href="./programmingChallenge/io/test.in.11">test input
+11</a></li>
+<li><a href="./programmingChallenge/io/test.out.11">test output
+11</a></li>
+<li><a href="./programmingChallenge/io/test.in.12">test input
+12</a></li>
+<li><a href="./programmingChallenge/io/test.out.12">test output
+12</a></li>
+<li><a href="./programmingChallenge/io/test.in.13">test input
+13</a></li>
+<li><a href="./programmingChallenge/io/test.out.13">test output
+13</a></li>
+<li><a href="./programmingChallenge/io/test.in.14">test input
+14</a></li>
+<li><a href="./programmingChallenge/io/test.out.14">test output
+14</a></li>
+<li><a href="./programmingChallenge/io/test.in.15">test input
+15</a></li>
+<li><a href="./programmingChallenge/io/test.out.15">test output
+15</a></li>
+<li><a href="./programmingChallenge/io/test.in.16">test input
+16</a></li>
+<li><a href="./programmingChallenge/io/test.out.16">test output
+16</a></li>
+<li><a href="./programmingChallenge/io/test.in.17">test input
+17</a></li>
+<li><a href="./programmingChallenge/io/test.out.17">test output
+17</a></li>
+<li><a href="./programmingChallenge/io/test.in.18">test input
+18</a></li>
+<li><a href="./programmingChallenge/io/test.out.18">test output
+18</a></li>
+<li><a href="./programmingChallenge/io/test.in.19">test input
+19</a></li>
+<li><a href="./programmingChallenge/io/test.out.19">test output
+19</a></li>
+<li><a href="./programmingChallenge/io/test.in.20">test input
+20</a></li>
+<li><a href="./programmingChallenge/io/test.out.20">test output
+20</a></li>
+</ul></li>
+</ul></li>
+</ul>
+</body>
+</html>
