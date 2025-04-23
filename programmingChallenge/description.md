@@ -4,6 +4,7 @@ You run a shady criminal organization on a secluded island that’s now under po
 However, if two members arrive at the same time, it draws unwanted attention! Therefore, each member must arrive at a different time. Your goal is to figure out the time it will take to transport all members while following the below constraints:
 - All members must reach the destination in the shortest possible time
 - No two members may arrive at the exact same time
+- Paths may contain loops, but members may not wait at any island. They must be on a flight at all times until they arrive at the destination.
 
 ### Input Format
 First line: n m s t k  
@@ -14,7 +15,7 @@ t = index of the final destination island
 k = number of organization members  
 
 Next m lines: u v w  
-A flight route goes from island u to island v with a travel time w.  
+A flight route goes from island u to island v (**not** from v to u) with a travel time w.
 ### Output Format
 Assuming all *k* members begin their journey at time t=0, output the time at which they will all have arrived at the destination. In other words, the length of the longest path found.
 
