@@ -41,5 +41,5 @@ Here:
 - There are 11 flight routes between islands.
 - Your starting island is island 0.
 - Your final safe island is island 5.
-- You are moving 4 members (k=3).
+- You are moving 4 members (k=4).
 - Hint: you will need to compute at least 6 paths to get the correct answer for this example.
