@@ -1,6 +1,6 @@
 import java.util.*;
 
-public class Main {
+public class pcSol_java {
     static final long INF = (long) 1e18;
 
     static class Edge {
