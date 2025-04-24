@@ -8,114 +8,182 @@
 
 using namespace std;
 
-const long long INF = 1e18;
+// Infinity constant for unreachable distances
+const long long INF = numeric_limits<long long>::max() / 2;
 
+/**
+ * Leftist heap node for storing sidetrack edges in Eppstein's algorithm.
+ * Maintains a min-heap property on 'key' (cost difference) and
+ * the leftist property (null-path length in 'rank').
+ */
 struct EHeap {
-    int rank, key, value;
-    EHeap *left, *right;
+    int rank;         // Null-path length for leftist heap
+    long long key;    // Cost difference of this sidetrack edge
+    int value;        // Target vertex index for this edge
+    EHeap *left, *right; // Child pointers
 
-    EHeap(int r, int k, int v, EHeap* l, EHeap* rgt)
+    // Constructor to initialize a new heap node
+    EHeap(int r, long long k, int v, EHeap* l, EHeap* rgt)
         : rank(r), key(k), value(v), left(l), right(rgt) {}
 };
 
-EHeap* insert(EHeap* a, int k, int v) {
+/**
+ * Persistent insert into leftist min-heap.
+ * @param a    Current heap root (can be nullptr)
+ * @param k    Key (cost difference) to insert
+ * @param v    Value (vertex index) to associate
+ * @return     New heap root including the inserted node
+ */
+EHeap* insert(EHeap* a, long long k, int v) {
+    // If empty or new key is smaller, create new root node
     if (!a || k < a->key)
         return new EHeap(1, k, v, a, nullptr);
 
-    EHeap* l = a->left;
-    EHeap* r = insert(a->right, k, v);
+    // Recursively insert into right subtree
+    EHeap* leftChild = a->left;
+    EHeap* rightChild = insert(a->right, k, v);
 
-    if (!l || (r && r->rank > l->rank))
-        swap(l, r);
+    // Enforce leftist property: leftChild->rank >= rightChild->rank
+    if (!leftChild || (rightChild && rightChild->rank > leftChild->rank))
+        swap(leftChild, rightChild);
 
-    int newRank = r ? r->rank + 1 : 1;
-    return new EHeap(newRank, a->key, a->value, l, r);
+    // Compute new rank = 1 + rank of right child
+    int newRank = rightChild ? rightChild->rank + 1 : 1;
+
+    // Return a new node with preserved key/value and updated children
+    return new EHeap(newRank, a->key, a->value, leftChild, rightChild);
 }
 
-vector<long long> dijkstra(const vector<vector<pair<int, int>>>& g, int src, vector<int>& parent) {
+/**
+ * Runs Dijkstra's algorithm on graph g from source 'src'.
+ * @param g       Adjacency list: g[u] contains pairs (weight, v)
+ * @param src     Source vertex index
+ * @param parent  Output vector to store parent pointers in shortest-path tree
+ * @return        Vector of shortest distances from src to each vertex
+ */
+vector<long long> dijkstra(const vector<vector<pair<int,int>>>& g,
+                           int src,
+                           vector<int>& parent) {
     int n = g.size();
     vector<long long> dist(n, INF);
     dist[src] = 0;
     parent.assign(n, -1);
 
-    priority_queue<pair<long long, int>, vector<pair<long long, int>>, greater<>> pq;
-    pq.emplace(0, src);
+    // Min-heap over (distance, vertex)
+    priority_queue<pair<long long,int>,
+                   vector<pair<long long,int>>,
+                   greater<>> pq;
+    pq.emplace(0LL, src);
 
     while (!pq.empty()) {
         auto [d_u, u] = pq.top(); pq.pop();
-        if (d_u != dist[u]) continue;
+        if (d_u != dist[u]) continue;  // Skip stale entries
 
+        // Relax each outgoing edge u->v
         for (auto [w, v] : g[u]) {
-            if (d_u + w < dist[v]) {
-                dist[v] = d_u + w;
+            long long nd = d_u + w;
+            if (nd < dist[v]) {
+                dist[v] = nd;
                 parent[v] = u;
-                pq.emplace(dist[v], v);
+                pq.emplace(nd, v);
             }
         }
     }
-
     return dist;
 }
 
-vector<long long> eppstein_k_shortest_paths(const vector<vector<pair<int, int>>>& g, int src, int dst, int k) {
+/**
+ * Computes the k shortest path costs from src to dst using Eppstein's algorithm.
+ * @param g    Forward adjacency list
+ * @param src  Source vertex index
+ * @param dst  Destination vertex index
+ * @param k    Number of shortest paths to compute
+ * @return     Vector of up to k path costs in non-decreasing order
+ */
+vector<long long>
+eppstein_k_shortest_paths(const vector<vector<pair<int,int>>>& g,
+                            int src,
+                            int dst,
+                            int k) {
     int n = g.size();
-    vector<vector<pair<int, int>>> revg(n);
 
-    for (int u = 0; u < n; ++u)
-        for (auto [w, v] : g[u])
+    // Build the reverse graph for backward Dijkstra
+    vector<vector<pair<int,int>>> revg(n);
+    for (int u = 0; u < n; ++u) {
+        for (auto [w, v] : g[u]) {
             revg[v].emplace_back(w, u);
+        }
+    }
 
     vector<int> parent;
     auto d = dijkstra(revg, dst, parent);
+    if (d[src] == INF) return {};  // No path exists
 
-    if (d[src] == INF) return {};
-
+    // Construct shortest-path tree from parent pointers
     vector<vector<int>> tree(n);
-    for (int u = 0; u < n; ++u)
-        if (parent[u] != -1)
+    for (int u = 0; u < n; ++u) {
+        if (parent[u] != -1) {
             tree[parent[u]].push_back(u);
+        }
+    }
 
+    // h[u] will point to a leftist heap of sidetrack edges from u
     vector<EHeap*> h(n, nullptr);
     queue<int> q;
     q.push(dst);
 
     while (!q.empty()) {
         int u = q.front(); q.pop();
-        bool seenParent = false;
+        bool seenPar = false;
 
+        // For each outgoing edge u->v in forward graph
         for (auto [w, v] : g[u]) {
-            if (d[v] == INF) continue;
+            if (d[v] == INF) continue;  // Skip unreachable nodes
             long long costDiff = w + d[v] - d[u];
-            if (!seenParent && v == parent[u] && costDiff == 0) {
-                seenParent = true;
-                continue;
+            // Skip the tree edge once (the main shortest-path link)
+            if (!seenPar && v == parent[u] && costDiff == 0) {
+                seenPar = true;
+            } else {
+                // Insert this sidetrack edge into u's heap
+                h[u] = insert(h[u], costDiff, v);
             }
-            h[u] = insert(h[u], costDiff, v);
         }
 
+        // Propagate u's heap pointer to its children in the tree
         for (int v : tree[u]) {
             h[v] = h[u];
             q.push(v);
         }
     }
 
-    vector<long long> result = { d[src] };
-    if (!h[src]) return result;
+    // Collect the k shortest distances
+    vector<long long> result;
+    result.push_back(d[src]);  // The shortest path cost
+    if (!h[src]) return result;  // No sidetracks => only one path
 
+    // Priority queue over (totalCost, EHeap* node)
     using PQNode = pair<long long, EHeap*>;
     priority_queue<PQNode, vector<PQNode>, greater<>> pq;
     pq.emplace(d[src] + h[src]->key, h[src]);
 
-    while (!pq.empty() && result.size() < k) {
-        auto [cost, node] = pq.top(); pq.pop();
-        result.push_back(cost);
+    while (!pq.empty() && (int)result.size() < k) {
+        auto [costSoFar, node] = pq.top(); pq.pop();
+        result.push_back(costSoFar);
 
-        if (h[node->value])
-            pq.emplace(cost + h[node->value]->key, h[node->value]);
-        if (node->left)
-            pq.emplace(cost + node->left->key - node->key, node->left);
-        if (node->right)
-            pq.emplace(cost + node->right->key - node->key, node->right);
+        // Continue along the main sidetrack chain
+        if (h[node->value]) {
+            pq.emplace(costSoFar + h[node->value]->key,
+                       h[node->value]);
+        }
+        // Explore sibling sidetrack branches
+        if (node->left) {
+            pq.emplace(costSoFar + node->left->key - node->key,
+                       node->left);
+        }
+        if (node->right) {
+            pq.emplace(costSoFar + node->right->key - node->key,
+                       node->right);
+        }
     }
 
     return result;
@@ -126,9 +194,10 @@ int main() {
     int num_edges;
     cin >> num_edges;
 
-    unordered_map<string, int> node_map;
-    unordered_map<int, string> reverse_map;
-    vector<tuple<int, int, int>> edges_raw;
+    // Map string labels to integer IDs
+    unordered_map<string,int> node_map;
+    unordered_map<int,string> reverse_map;
+    vector<tuple<int,int,int>> edges_raw;
     int next_id = 0;
 
     cout << "Enter each edge in the format 'from to weight' (e.g., A B 3):\n";
@@ -137,26 +206,31 @@ int main() {
         int w;
         cin >> u_str >> v_str >> w;
 
-        if (node_map.count(u_str) == 0) {
+        // Assign unique IDs for each node label
+        if (!node_map.count(u_str)) {
             node_map[u_str] = next_id;
             reverse_map[next_id] = u_str;
             ++next_id;
         }
-        if (node_map.count(v_str) == 0) {
+        if (!node_map.count(v_str)) {
             node_map[v_str] = next_id;
             reverse_map[next_id] = v_str;
             ++next_id;
         }
 
-        int u = node_map[u_str], v = node_map[v_str];
+        int u = node_map[u_str];
+        int v = node_map[v_str];
         edges_raw.emplace_back(u, v, w);
     }
 
+    // Build adjacency list for forward graph
     int n = next_id;
-    vector<vector<pair<int, int>>> g(n);
-    for (auto [u, v, w] : edges_raw)
+    vector<vector<pair<int,int>>> g(n);
+    for (auto& [u, v, w] : edges_raw) {
         g[u].emplace_back(w, v);
+    }
 
+    // Read source, target, and k
     string source_str, target_str;
     int k;
     cout << "Enter the source node: ";
@@ -166,22 +240,25 @@ int main() {
     cout << "Enter the number of paths (k): ";
     cin >> k;
 
-    if (node_map.count(source_str) == 0 || node_map.count(target_str) == 0) {
+    // Validate inputs
+    if (!node_map.count(source_str) || !node_map.count(target_str)) {
         cout << "No path found from " << source_str << " to " << target_str << ".\n";
         return 0;
     }
 
     int source = node_map[source_str];
     int target = node_map[target_str];
+
     auto results = eppstein_k_shortest_paths(g, source, target, k);
 
+    // Output results, padding with -1 if fewer than k paths found
     if (results.empty()) {
         cout << "No path found from " << source_str << " to " << target_str << ".\n";
     } else {
         for (size_t i = 0; i < results.size(); ++i) {
-            cout << "Path " << (i + 1) << ": " << results[i] << "\n";
+            cout << "Path " << (i+1) << ": " << results[i] << "\n";
         }
-        for (int i = results.size(); i < k; ++i) {
+        for (size_t i = results.size(); i < (size_t)k; ++i) {
             cout << "-1\n";
         }
     }
