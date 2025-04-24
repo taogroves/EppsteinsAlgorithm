@@ -1,177 +1,295 @@
 #include <iostream>
 #include <vector>
+#include <queue>       // Provides priority_queue and queue
+#include <tuple>       // Provides tuple for storing states
+#include <limits>      // Provides numeric_limits for INF
+#include <functional>  // Provides greater<> comparator
+#include <algorithm>   // Provides swap
+
 using namespace std;
 
-static const long long INF = (long long)1e18;
+// compiles with: g++ -std=c++17 -O2 -o a.out pcSol_cpp.cpp
 
-/* Dijkstra on adjacency list (for reversed graph here) */
-pair<vector<long long>, vector<int>> dijkstra(const vector<vector<pair<long long,int>>> &g, int src) {
-    int n = (int)g.size();
+//------------------------------------------------------------------------------
+// Constants
+//------------------------------------------------------------------------------
+// INF represents an effectively infinite distance (half of max long long)
+static const long long INF = numeric_limits<long long>::max() / 2;
+
+//------------------------------------------------------------------------------
+// Dijkstra's Algorithm (Backward)
+//------------------------------------------------------------------------------
+/**
+ * Runs Dijkstra's algorithm on a reversed graph to compute shortest distances
+ * from a given source 'src' to all other nodes.
+ *
+ * @param g   The reversed adjacency list: g[u] contains (weight, v) pairs
+ * @param src The source vertex index
+ * @return    A pair of vectors:
+ *            - first:  d[u] = shortest distance from src to u
+ *            - second: parent[u] = preceding vertex on the shortest path
+ */
+pair<vector<long long>, vector<int>> dijkstra(
+    const vector<vector<pair<long long,int>>>& g,
+    int src
+) {
+    int n = g.size();
     vector<long long> d(n, INF);
-    vector<int> p(n, -1);
-    d[src] = 0;
+    vector<int> parent(n, -1);
+    d[src] = 0;  // Distance to source is zero
 
-    priority_queue<pair<long long,int>, vector<pair<long long,int>>, greater<pair<long long,int>>> pq;
+    // Min-heap (priority_queue) storing (distance, vertex)
+    priority_queue<
+        pair<long long,int>,
+        vector<pair<long long,int>>,
+        greater<>
+    > pq;
     pq.push({0, src});
 
-    while(!pq.empty()){
+    while (!pq.empty()) {
         auto [distU, u] = pq.top();
         pq.pop();
-        if(distU != d[u]) continue;
-        for(auto &edge : g[u]){
-            long long w = edge.first;
-            int v = edge.second;
-            if(d[u] + w < d[v]){
-                d[v] = d[u] + w;
-                p[v] = u;
-                pq.push({d[v], v});
+
+        // If this entry is outdated (greater than current best), skip it
+        if (distU != d[u]) continue;
+
+        // Relax all outgoing edges from u
+        for (auto &edge : g[u]) {
+            long long w = edge.first;  // edge weight
+            int v = edge.second;       // neighbor
+            long long newDist = distU + w;
+            if (newDist < d[v]) {
+                d[v] = newDist;
+                parent[v] = u;
+                pq.push({newDist, v});
             }
         }
     }
-    return {d, p};
+
+    return {d, parent};
 }
 
-/* Leftist heap structure */
+//------------------------------------------------------------------------------
+// Leftist Heap Node Definition
+//------------------------------------------------------------------------------
+/**
+ * A node in a leftist heap storing "sidetrack" edges for Eppstein's algorithm.
+ * Each node keeps the following:
+ *  - rank: null-path length for maintaining leftist property
+ *  - key:  cost difference of this sidetrack edge
+ *  - origin: source vertex where this sidetrack originates
+ *  - value: destination vertex of this sidetrack
+ *  - left, right: child pointers
+ */
 struct EHeap {
     long long rank;
     long long key;
     int origin;
     int value;
-    EHeap* left;
-    EHeap* right;
+    EHeap *left;
+    EHeap *right;
 
+    /**
+     * Constructs a new heap node.
+     * @param r    null-path length
+     * @param k    cost difference (heap key)
+     * @param o    origin vertex
+     * @param v    destination vertex
+     * @param l    left child
+     * @param rr   right child
+     */
     EHeap(long long r, long long k, int o, int v, EHeap* l, EHeap* rr)
         : rank(r), key(k), origin(o), value(v), left(l), right(rr) {}
 
-    static EHeap* insertNode(EHeap* a, long long k, int u, int v) {
-        if(!a || k < a->key) {
-            return new EHeap(1, k, u, v, a, nullptr);
+    /**
+     * Inserts a new sidetrack into the heap persistently.
+     * Ensures the min-heap and leftist properties.
+     *
+     * @param a    Current heap root (or nullptr)
+     * @param k    cost difference to insert
+     * @param o    origin vertex
+     * @param v    destination vertex
+     * @return     New heap root with the new element
+     */
+    static EHeap* insertNode(
+        EHeap* a,
+        long long k,
+        int o,
+        int v
+    ) {
+        // If empty or new key is smaller than root key, make new root
+        if (!a || k < a->key) {
+            return new EHeap(1, k, o, v, a, nullptr);
         }
-        a->right = insertNode(a->right, k, u, v);
-        if(!a->left || (a->right && a->right->rank > a->left->rank)) {
+
+        // Otherwise, recursively insert into right subtree
+        a->right = insertNode(a->right, k, o, v);
+
+        // Enforce leftist property: left child rank >= right child rank
+        if (!a->left || (a->right && a->right->rank > a->left->rank)) {
             swap(a->left, a->right);
         }
+
+        // Update this node's rank: one plus rank of right child
         a->rank = (a->right ? a->right->rank : 0) + 1;
         return a;
     }
 };
 
-/* shortest_paths_no_same_arrival, returns vector of (distance, path) */
-vector<pair<long long, vector<pair<int,int>>>> 
-shortest_paths_no_same_arrival(const vector<vector<pair<long long,int>>> &g,
-                               int src, int dst, int k) {
-    int n = (int)g.size();
-    // Build reversed graph
+//------------------------------------------------------------------------------
+// Eppstein's K-Shortest Paths (No Same Arrival)
+//------------------------------------------------------------------------------
+/**
+ * Computes up to k shortest path costs from src to dst without repeating
+ * any arrival edge, using Eppstein's algorithm with persistent sidetrack heaps.
+ *
+ * @param g   Forward adjacency list: g[u] contains (weight, v)
+ * @param src Source vertex index
+ * @param dst Destination vertex index
+ * @param k   Number of paths to compute
+ * @return    Vector of pairs (cost, sidetrack sequence) sorted by cost
+ */
+vector<pair<long long, vector<pair<int,int>>>>
+shortest_paths_no_same_arrival(
+    const vector<vector<pair<long long,int>>>& g,
+    int src,
+    int dst,
+    int k
+) {
+    int n = g.size();
+
+    // 1. Build reversed graph for backward Dijkstra
     vector<vector<pair<long long,int>>> revg(n);
-    for(int u=0; u<n; u++){
-        for(auto &edge : g[u]){
-            long long w = edge.first;
-            int v = edge.second;
+    for (int u = 0; u < n; ++u) {
+        for (auto &e : g[u]) {
+            int v = e.second;
+            long long w = e.first;
             revg[v].push_back({w, u});
         }
     }
 
-    // Dijkstra on reversed graph from dst
-    auto [d, p] = dijkstra(revg, dst);
-    if(d[src] == INF) {
+    // 2. Run Dijkstra from dst on reversed graph to get dist[] and parent[]
+    auto [d, parent] = dijkstra(revg, dst);
+    if (d[src] == INF) {
+        // No path exists at all
         return {};
     }
 
-    // Build tree t from p
-    vector<vector<int>> t(n);
-    for(int u=0; u<n; u++){
-        if(p[u] != -1){
-            t[p[u]].push_back(u);
+    // 3. Build shortest-path tree from parent pointers
+    vector<vector<int>> tree(n);
+    for (int u = 0; u < n; ++u) {
+        int p = parent[u];
+        if (p != -1) {
+            tree[p].push_back(u);
         }
     }
 
-    // Prepare heaps
-    vector<EHeap*> h(n, nullptr);
-    queue<int> bfsq;
-    bfsq.push(dst);
+    // 4. Construct persistent leftist heaps of sidetrack edges for each node
+    vector<EHeap*> heaps(n, nullptr);
+    queue<int> q;
+    q.push(dst);
+    while (!q.empty()) {
+        int u = q.front(); q.pop();
+        bool skippedTreeEdge = false;
 
-    while(!bfsq.empty()){
-        int u = bfsq.front(); 
-        bfsq.pop();
-        bool seenp = false;
-        // Insert edges from g[u]
-        for(auto &edge : g[u]){
-            long long w = edge.first;
-            int v = edge.second;
-            if(d[v] == INF) continue;
-            long long c = w + d[v] - d[u];
-            if(!seenp && v == p[u] && c == 0){
-                seenp = true;
+        // Insert all non-tree edges as sidetracks
+        for (auto &e : g[u]) {
+            int v = e.second;
+            long long w = e.first;
+            if (d[v] == INF) continue;  // skip unreachable
+
+            long long costDiff = w + d[v] - d[u];
+            // Skip the primary tree edge exactly once
+            if (!skippedTreeEdge && v == parent[u] && costDiff == 0) {
+                skippedTreeEdge = true;
                 continue;
             }
-            h[u] = EHeap::insertNode(h[u], c, u, v);
-        }
-        // Propagate to children in t
-        for(int child : t[u]){
-            h[child] = h[u];
-            bfsq.push(child);
-        }
-    }
-
-    // ans stores (distance, path)
-    vector<pair<long long, vector<pair<int,int>>>> ans;
-    ans.push_back({d[src], {}});
-
-    // If no heap at src, we only have the shortest path distance
-    if(!h[src]) {
-        return ans;
-    }
-
-    // Priority queue for expansions: (costSoFar, EHeap*, currentPath)
-    typedef tuple<long long, EHeap*, vector<pair<int,int>>> State;
-    priority_queue<State, vector<State>, greater<State>> pq;
-    pq.push({d[src] + h[src]->key, h[src], {}});
-
-    while(!pq.empty() && (int)ans.size() < k){
-        auto [cd, ch, path] = pq.top();
-        pq.pop();
-        auto new_path = path;
-        new_path.push_back({ch->origin, ch->value});
-
-        // If cost is strictly larger, add to ans
-        if(cd > ans.back().first){
-            ans.push_back({cd, new_path});
+            // Persistent insert into heap at u
+            heaps[u] = EHeap::insertNode(heaps[u], costDiff, u, v);
         }
 
-        // Expand
-        if(h[ch->value]) {
-            pq.push({cd + h[ch->value]->key, h[ch->value], new_path});
-        }
-        if(ch->left) {
-            pq.push({cd + ch->left->key - ch->key, ch->left, path});
-        }
-        if(ch->right) {
-            pq.push({cd + ch->right->key - ch->key, ch->right, path});
+        // Propagate heap pointer to children in the shortest-path tree
+        for (int child : tree[u]) {
+            heaps[child] = heaps[u];
+            q.push(child);
         }
     }
-    return ans;
+
+    // 5. Extract k shortest path costs using the sidetrack heaps
+    // Store (cost, sidetrack path) in 'results'
+    vector<pair<long long, vector<pair<int,int>>>> results;
+    results.emplace_back(d[src], vector<pair<int,int>>());
+    if (!heaps[src]) {
+        // No sidetracks => only single shortest path
+        return results;
+    }
+
+    // Priority queue over (totalCost, heapNode, sidetrackSequence)
+    using State = tuple<long long, EHeap*, vector<pair<int,int>>>;
+    priority_queue<State, vector<State>, greater<>> pq2;
+
+    // Seed with first sidetrack at the source
+    pq2.push({d[src] + heaps[src]->key, heaps[src], {}});
+
+    while (!pq2.empty() && results.size() < (size_t)k) {
+        auto [costSoFar, node, path] = pq2.top();
+        pq2.pop();
+
+        // Extend path by the current sidetrack
+        vector<pair<int,int>> newPath = path;
+        newPath.emplace_back(node->origin, node->value);
+
+        // Only record if cost strictly increases to avoid duplicates
+        if (costSoFar > results.back().first) {
+            results.emplace_back(costSoFar, newPath);
+        }
+
+        // Expand along this sidetrack node
+        if (heaps[node->value]) {
+            pq2.push({
+                costSoFar + heaps[node->value]->key,
+                heaps[node->value],
+                newPath
+            });
+        }
+        // Also explore left and right children in the heap
+        if (node->left)  pq2.push({costSoFar + node->left->key  - node->key,  node->left,  path});
+        if (node->right) pq2.push({costSoFar + node->right->key - node->key, node->right, path});
+    }
+
+    return results;
 }
 
-int main(){
+//------------------------------------------------------------------------------
+// Main Program Entry
+//------------------------------------------------------------------------------
+int main() {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
 
+    // Read graph parameters:
+    // n = #vertices, m = #edges, s = source, t = target, k = #paths to find
     int n, m, s, t, k;
     cin >> n >> m >> s >> t >> k;
 
+    // Build adjacency list for the forward graph
     vector<vector<pair<long long,int>>> graph(n);
-    for(int i=0; i<m; i++){
-        long long w;
+    for (int i = 0; i < m; ++i) {
         int u, v;
+        long long w;
         cin >> u >> v >> w;
-        graph[u].push_back({w, v});
+        graph[u].emplace_back(w, v);
     }
 
-    // Compute up to k distinct paths with no same arrival
+    // Compute the k shortest paths with no same arrival edge
     auto paths = shortest_paths_no_same_arrival(graph, s, t, k);
 
-    // Output the length of the last (longest) path
-    cout << paths.back().first << '\n';
-    
+    // Output the cost of the k-th path (or -1 if none exist)
+    if (paths.size() < (size_t)k) {
+        cout << "-1\n";
+    } else {
+        cout << paths.back().first << '\n';
+    }
+
     return 0;
 }
