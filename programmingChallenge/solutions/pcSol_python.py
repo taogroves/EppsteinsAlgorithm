@@ -86,7 +86,7 @@ def shortest_paths_no_same_arrival(g, src, dst, k):
     Computes the k-th shortest path distance from src to dst, disallowing
     two paths that arrive at dst at the same total distance.
     Uses simplificaiton of Eppstein's algorithm with leftist heaps for efficiency.
-    Returns the k-th shortest distance, or -1 if fewer than k paths exist.
+    Returns the k-th shortest distance, along with the sidetrack edges taken.
     """
     n = len(g)
 
@@ -133,11 +133,12 @@ def shortest_paths_no_same_arrival(g, src, dst, k):
     # Gather k shortest paths, starting with the shortest path
     # for each path, store the distance and the sidetrack edges taken
     results = [(d[src], [])]
-    pq = [(d[src] + h[src].key, h[src], [])]
+
     if h[src] is None:
         # if no sidetrack is available, return the shortest path
-        return results
+        return results[0]
 
+    pq = [(d[src] + h[src].key, h[src], [])]
     # Extract next-best deviations until we have k distances
     while pq and len(results) < k:
         cd, node, path = heappop(pq)

@@ -5,20 +5,22 @@ Your goal is to figure out the flight route the *k*-th member must take to reach
 - The *k*-th member must take the shortest possible journey to the new island.
 - The *k*-th member must arrive at a different time than any other member.
 - If two routes have the same arrival time, use the one with the shortest average flight duration.
+- Paths may contain loops of any length.
 - These constraints must hold for any value of *k* as long as it is possible to find *k* routes with distinct lengths.
 
 In other words, if there are *k* members traveling, each one taking the next shortest route, your algorithm will compute the route the *last* one takes (the *k*-th shortest).
 
 ### Input Format
 First line: n m s t k  
-n = number of islands (nodes in the graph)  
-m = number of flight routes (edges in the graph)  
+n < 10^5 = number of islands (nodes in the graph)  
+m < 10^6 = number of flight routes (edges in the graph)  
 s = index of the island you are fleeing from  
 t = index of the final destination island  
 k = index of the path to compute
 
 Next m lines: u v w  
-A flight route goes from island u to island v (**not** from v to u) with a travel time w.
+A flight route goes from island u to island v (**not** from v to u) with a travel time w.  
+You can assume there will always be *k* paths with distinct lengths for any test case given, and that all edge weights are positive integers.
 ### Output Format
 Output the nodes visited by the *k*-th member on their journey from *s* to *t*, separated by spaces.
 
