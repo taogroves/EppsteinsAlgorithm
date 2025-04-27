@@ -310,14 +310,10 @@ int main() {
         // Follow shortest path until sidetrack needed
         while (true) {
             // If sidetrack available and matches current node
+            resultPath.push_back(current);
             if (sidetrackIndex < sidetracks.size() && sidetracks[sidetrackIndex].first == current) {
                 current = sidetracks[sidetrackIndex].second;
                 sidetrackIndex++;
-                break;
-            }
-            resultPath.push_back(current);
-            if (parent[current] == -1) {
-                // Should not happen if there is a path
                 break;
             }
             current = parent[current];
