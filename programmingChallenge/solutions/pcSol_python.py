@@ -145,8 +145,6 @@ def shortest_paths_no_same_arrival(g, src, dst, k):
         # add this sidetrack to the path
         new_path = path + [(node.origin, node.value)]
 
-        print(new_path)
-
         if cd > results[-1][0]:
             results.append((cd, new_path))
 
