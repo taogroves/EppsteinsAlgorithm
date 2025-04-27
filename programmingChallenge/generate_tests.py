@@ -67,12 +67,15 @@ def generate_test(index):
         f.write(str(result))
 
 
-def run_test(i):
+def run_tests_in_range(start, end):
     # Run the test case
     import os
-    os.system(f'python3 ./solutions/pcSol_python.py < ./io/test.in.{i} > ./io/test.out.{i}')
+    for i in range(start, end + 1):
+        os.system(f'python3 ./solutions/pcSol_python.py < ./io/test.in.{i} > ./io/test.out.{i}')
 
 if __name__ == "__main__":
     # generate_test(2)
 
-    generate_random_test(3, 1000, 10000, 0, 10, 1000)
+    # generate_random_test(3, 1000, 10000, 0, 10, 1000)
+
+    run_tests_in_range(1, 1)
