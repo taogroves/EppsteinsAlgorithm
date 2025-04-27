@@ -85,7 +85,7 @@ def shortest_paths_no_same_arrival(g, src, dst, k):
     """
     Computes the k-th shortest path distance from src to dst, disallowing
     two paths that arrive at dst at the same total distance.
-    Uses Yen's algorithm variant with leftist heaps for efficiency.
+    Uses simplificaiton of Eppstein's algorithm with leftist heaps for efficiency.
     Returns the k-th shortest distance, or -1 if fewer than k paths exist.
     """
     n = len(g)
@@ -130,27 +130,68 @@ def shortest_paths_no_same_arrival(g, src, dst, k):
             h[v] = h[u]
             queue.append(v)
 
-    # Gather k shortest path distances, starting with the shortest
-    results = [d[src]]
-    pq = []
-    if h[src] is not None:
-        heappush(pq, (d[src] + h[src].key, h[src]))
+    # Gather k shortest paths, starting with the shortest path
+    # for each path, store the distance and the sidetrack edges taken
+    results = [(d[src], [])]
+    pq = [(d[src] + h[src].key, h[src], [])]
+    if h[src] is None:
+        # if no sidetrack is available, return the shortest path
+        return results
 
     # Extract next-best deviations until we have k distances
     while pq and len(results) < k:
-        cd, node = heappop(pq)
-        if cd > results[-1]:
-            results.append(cd)
+        cd, node, path = heappop(pq)
+
+        # add this sidetrack to the path
+        new_path = path + [(node.origin, node.value)]
+
+        if cd > results[-1][0]:
+            results.append((cd, new_path))
+
         # push further deviations from this node
         if h[node.value] is not None:
-            heappush(pq, (cd + h[node.value].key, h[node.value]))
+            heappush(pq, (cd + h[node.value].key, h[node.value], new_path))
         if node.left:
-            heappush(pq, (cd + node.left.key - node.key, node.left))
+            heappush(pq, (cd + node.left.key - node.key, node.left, path))
         if node.right:
-            heappush(pq, (cd + node.right.key - node.key, node.right))
+            heappush(pq, (cd + node.right.key - node.key, node.right, path))
 
-    # return the k-th shortest distance
+    # return the k-th shortest path
     return results[-1]
+
+def get_kth_shortest_path(g, src, dst, k):
+    """
+    Returns the k-th shortest path from src to dst in graph g.
+    The path is represented as a list of nodes.
+    """
+    # Compute the shortest path predecessor tree
+    n = len(g)
+    revg = [[] for _ in range(n)]
+    for u in range(n):
+        for w, v in g[u]:
+            revg[v].append((w, u))
+    pred = [-1] * n
+    d = dijkstra(revg, dst, pred)
+    if d[src] == INF:
+        return []
+
+    # Get the sidetracks used in the k-th shortest path
+    sidetracks_used = shortest_paths_no_same_arrival(g, src, dst, k)[1]
+
+    # Reconstruct the path from src to dst using the sidetracks and predecessors
+    path = []
+    u = src
+    while u != dst:
+        path.append(u)
+        if sidetracks_used and sidetracks_used[0][0] == u:
+            u = sidetracks_used[0][1]
+            sidetracks_used.pop(0)
+        else:
+            u = pred[u]
+    path.append(dst)
+
+    # Return the path
+    return path
 
 
 def main():
@@ -161,7 +202,11 @@ def main():
         u, v, w = map(int, data.readline().split())
         g[u].append((w, v))
 
-    print(shortest_paths_no_same_arrival(g, s, t, k))
+    path = get_kth_shortest_path(g, s, t, k)
+    if path:
+        print(" ".join(map(str, path)))
+    else:
+        print(-1)
 
 if __name__ == '__main__':
     main()

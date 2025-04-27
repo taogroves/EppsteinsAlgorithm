@@ -66,6 +66,12 @@ def generate_test(index):
     with open(f'./io/test.out.{index}', 'w') as f:
         f.write(str(result))
 
+
+def run_test(i):
+    # Run the test case
+    import os
+    os.system(f'python3 ./solutions/pcSol_python.py < ./io/test.in.{i} > ./io/test.out.{i}')
+
 if __name__ == "__main__":
     # generate_test(2)
 
