@@ -287,9 +287,48 @@ int main() {
     // Output the cost of the k-th path (or -1 if none exist)
     if (paths.size() < (size_t)k) {
         cout << "-1\n";
-    } else {
-        cout << paths.back().first << '\n';
     }
 
-    return 0;
+    // Re-run Dijkstra to get dist and parent arrays
+    vector<vector<pair<long long,int>>> revg(n);
+    for (int u = 0; u < n; ++u) {
+        for (auto &e : graph[u]) {
+            int v = e.second;
+            long long w = e.first;
+            revg[v].emplace_back(w, u);
+        }
+    }
+    auto [d, parent] = dijkstra(revg, t);
+
+    // Reconstruct path
+    vector<int> resultPath;
+    int current = s;
+    size_t sidetrackIndex = 0;
+    auto &sidetracks = paths.back().second; // Get sidetrack sequence
+
+    while (current != t) {
+        // Follow shortest path until sidetrack needed
+        while (true) {
+            // If sidetrack available and matches current node
+            if (sidetrackIndex < sidetracks.size() && sidetracks[sidetrackIndex].first == current) {
+                current = sidetracks[sidetrackIndex].second;
+                sidetrackIndex++;
+                break;
+            }
+            resultPath.push_back(current);
+            if (parent[current] == -1) {
+                // Should not happen if there is a path
+                break;
+            }
+            current = parent[current];
+        }
+    }
+    resultPath.push_back(t);
+
+    // Output the path
+    for (size_t i = 0; i < resultPath.size(); ++i) {
+        cout << resultPath[i];
+        if (i + 1 < resultPath.size()) cout << ' ';
+    }
+    cout << '\n';
 }
