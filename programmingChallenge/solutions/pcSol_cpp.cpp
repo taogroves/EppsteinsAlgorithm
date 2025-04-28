@@ -307,15 +307,13 @@ int main() {
     auto &sidetracks = paths.back().second; // Get sidetrack sequence
 
     while (current != t) {
-        // Follow shortest path until sidetrack needed
-        while (true) {
-            // If sidetrack available and matches current node
-            resultPath.push_back(current);
-            if (sidetrackIndex < sidetracks.size() && sidetracks[sidetrackIndex].first == current) {
-                current = sidetracks[sidetrackIndex].second;
-                sidetrackIndex++;
-                break;
-            }
+        resultPath.push_back(current);
+        // If a sidetrack from the current node is taken, follow it
+        if (sidetrackIndex < sidetracks.size() && sidetracks[sidetrackIndex].first == current) {
+            current = sidetracks[sidetrackIndex].second;
+            sidetrackIndex++;
+        } else {
+            // Otherwise, follow the optimal path
             current = parent[current];
         }
     }
